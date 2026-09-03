@@ -7,7 +7,6 @@ import type {
   MachineIntervals,
   ProduceBucket,
   ProduceCount,
-  TimelineSegment,
 } from '../types'
 import { formatIst, hourKey, makeHourBoundaries } from './time'
 
@@ -38,35 +37,50 @@ export function getEntityScope(asset: AssetNode) {
   }
 }
 
-export function normalizeSegments(data: MachineIntervals): ChartSegment[] {
-  const runtimes = data.runtimes.map((segment) => ({
-    ...segment,
-    kind: segment.type === 'unknown unplanned production' ? SEGMENT_KINDS.unplannedProduction : SEGMENT_KINDS.runtime,
-    startMs: Date.parse(segment.start_at),
-    endMs: Date.parse(segment.end_at),
-  }))
+export function normalizeSegments(data: MachineIntervals, windowStart?: Date, windowEnd?: Date): ChartSegment[] {
+  const windowStartMs = windowStart?.getTime() ?? Number.NEGATIVE_INFINITY
+  const windowEndMs = windowEnd?.getTime() ?? Number.POSITIVE_INFINITY
+  const runtimes = (data.runtimes ?? []).flatMap((segment) =>
+    toChartSegment(
+      segment,
+      segment.type === 'unknown unplanned production' ? SEGMENT_KINDS.unplannedProduction : SEGMENT_KINDS.runtime,
+      windowStartMs,
+      windowEndMs,
+    ),
+  )
 
-  const downtimes = data.downtimes.map((segment) => ({
-    ...segment,
-    kind: SEGMENT_KINDS.unknownDowntime,
-    startMs: Date.parse(segment.start_at),
-    endMs: Date.parse(segment.end_at),
-  }))
+  const downtimes = (data.downtimes ?? []).flatMap((segment) =>
+    toChartSegment(segment, SEGMENT_KINDS.unknownDowntime, windowStartMs, windowEndMs),
+  )
 
-  const stoppages = data.stoppages.map((segment) => ({
-    ...segment,
-    kind: SEGMENT_KINDS.stoppage,
-    startMs: Date.parse(segment.start_at),
-    endMs: Date.parse(segment.end_at),
-  }))
+  const stoppages = (data.stoppages ?? []).flatMap((segment) =>
+    toChartSegment(segment, SEGMENT_KINDS.stoppage, windowStartMs, windowEndMs),
+  )
 
   return [...runtimes, ...downtimes, ...stoppages].sort((a, b) => a.startMs - b.startMs)
 }
 
+function toChartSegment(
+  segment: MachineIntervals['runtimes'][number],
+  kind: ChartSegment['kind'],
+  windowStartMs: number,
+  windowEndMs: number,
+): ChartSegment[] {
+  const rawStartMs = Date.parse(segment.start_at)
+  const rawEndMs = Date.parse(segment.end_at)
+  if (!Number.isFinite(rawStartMs) || !Number.isFinite(rawEndMs) || rawEndMs <= rawStartMs) return []
+
+  const startMs = Math.max(rawStartMs, windowStartMs)
+  const endMs = Math.min(rawEndMs, windowEndMs)
+  if (endMs <= startMs) return []
+
+  return [{ ...segment, kind, startMs, endMs }]
+}
+
 export function flattenProduces(buckets: ProduceBucket[] = []): ChartMarker[] {
-  return buckets
+  return (buckets ?? [])
     .flatMap((bucket) =>
-      bucket.produces.map((produce) => ({
+      (bucket.produces ?? []).map((produce) => ({
         id: produce.produce_id,
         timestamp: new Date(produce.first_seen_ts),
         timeMs: Date.parse(produce.first_seen_ts),
@@ -82,7 +96,7 @@ export function flattenProduces(buckets: ProduceBucket[] = []): ChartMarker[] {
 
 export function markersFromCounts(counts: ProduceCount[]): ChartMarker[] {
   const byHour = new Map<string, { bucket: ProduceCount; total: number }>()
-  for (const count of counts) {
+  for (const count of counts ?? []) {
     const key = count.bucket_start
     const existing = byHour.get(key)
     if (existing) {
@@ -123,7 +137,8 @@ export function thinMarkers(markers: ChartMarker[], maxPassMarkers: number) {
 export function buildHourBuckets(
   windowStart: Date,
   windowEnd: Date,
-  intervals: MachineIntervals,
+  segments: ChartSegment[],
+  produceCounts: ProduceCount[],
   cycleTimes: CycleTimeBucket[],
   now = new Date(),
 ): HourBucket[] {
@@ -148,10 +163,8 @@ export function buildHourBuckets(
     }
   })
 
-  addProduceCounts(buckets, intervals.produce_counts)
-  addSegments(buckets, intervals.runtimes, 'runtimeMinutes', 'unplannedProductionMinutes', now)
-  addSegments(buckets, intervals.downtimes, 'unknownDowntimeMinutes', 'unknownDowntimeMinutes', now)
-  addSegments(buckets, intervals.stoppages, 'stoppageMinutes', 'stoppageMinutes', now)
+  addProduceCounts(buckets, produceCounts)
+  addSegments(buckets, segments, now)
   addCycleTimes(buckets, cycleTimes)
 
   return buckets
@@ -168,26 +181,31 @@ function addProduceCounts(buckets: HourBucket[], counts: ProduceCount[]) {
   }
 }
 
-function addSegments(
-  buckets: HourBucket[],
-  segments: TimelineSegment[],
-  normalField: 'runtimeMinutes' | 'unknownDowntimeMinutes' | 'stoppageMinutes',
-  unplannedField: 'unplannedProductionMinutes' | 'unknownDowntimeMinutes' | 'stoppageMinutes',
-  now: Date,
-) {
+function addSegments(buckets: HourBucket[], segments: ChartSegment[], now: Date) {
   for (const segment of segments) {
-    const start = new Date(segment.start_at).getTime()
-    const end = new Date(segment.end_at).getTime()
-    const field = segment.type === 'unknown unplanned production' ? unplannedField : normalField
+    const field = fieldForSegmentKind(segment.kind)
 
     for (const bucket of buckets) {
       if (!bucket.elapsed) continue
       const cappedBucketEnd = Math.min(bucket.end.getTime(), now.getTime())
-      const overlapStart = Math.max(start, bucket.start.getTime())
-      const overlapEnd = Math.min(end, cappedBucketEnd)
+      const overlapStart = Math.max(segment.startMs, bucket.start.getTime())
+      const overlapEnd = Math.min(segment.endMs, cappedBucketEnd)
       if (overlapEnd <= overlapStart) continue
       bucket[field] = (bucket[field] ?? 0) + (overlapEnd - overlapStart) / 60000
     }
+  }
+}
+
+function fieldForSegmentKind(kind: ChartSegment['kind']) {
+  switch (kind) {
+    case 'runtime':
+      return 'runtimeMinutes'
+    case 'unplanned-production':
+      return 'unplannedProductionMinutes'
+    case 'unknown-downtime':
+      return 'unknownDowntimeMinutes'
+    case 'stoppage':
+      return 'stoppageMinutes'
   }
 }
 

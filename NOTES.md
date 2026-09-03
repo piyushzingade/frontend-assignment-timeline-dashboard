@@ -8,17 +8,21 @@ cp .env.example .env
 npm run dev
 ```
 
-The backend URL is read from `VITE_BACKEND_BASE_URL`. The default matches the assignment host and does not add an `/api` prefix.
+The backend URL is read from `VITE_API_BASE_URL`. The default matches the assignment host and does not add an `/api` prefix.
 
-## UI Stack
+## Architecture
 
-The assignment names MUI v6, but this implementation deliberately uses Base UI with Tailwind CSS as requested. Base UI provides accessible unstyled primitives for buttons, fields, inputs, and switches. Tailwind owns the visual styling, so the UI can still match the dense dashboard screenshots without bringing in MUI.
+The application uses React 18, TypeScript, Vite, MUI v6, and Tailwind utility classes for layout polish. API concerns live in a centralized client, auth state lives in an auth provider, and timeline/time aggregation logic is kept in pure utilities so the chart and table can share the same normalized data.
 
 ## Session And Token Management
 
-The access token is stored in `localStorage` under `timeline-dashboard-token`. This keeps the user signed in across refreshes, which the assignment requires. The tradeoff is that local storage is reachable by injected JavaScript, so the app keeps the token handling centralized and avoids spreading auth logic through components.
+The access token is stored in `sessionStorage` under `timeline-dashboard-token`. This keeps the user signed in across refreshes while scoping the token to the browser tab session. The tradeoff is that session storage is still reachable by injected JavaScript, so it should not be described as XSS-safe.
 
-On app load, the auth provider reads the token and validates it with `GET /auth/me` before showing the dashboard. All authenticated requests go through one API client that adds `Authorization: Bearer <token>` and unwraps the MES envelope. Any authenticated 401 clears the token and returns the app to login. Login 401s stay on the login screen as inline credential errors.
+On app load, the auth provider reads the token and validates it with `GET /auth/me` before showing the dashboard. All authenticated requests go through one API client that adds `Authorization: Bearer <token>` and unwraps the MES envelope. Any authenticated 401 clears the token and returns the app to login. Login 401s stay on the login screen as inline credential errors. Logout calls `/auth/logout` and clears the local session even if the backend request fails.
+
+## Data Fetching
+
+Filter metadata requests for assets and shifts run in parallel. Machine intervals and cycle-time requests also run in parallel once the selected entity scope and shift window are valid. Superseded dashboard requests are aborted with `AbortController`, and a request id prevents older responses from overwriting newer filter selections. There is no polling; the refresh button reruns the current request.
 
 ## Chart Performance
 

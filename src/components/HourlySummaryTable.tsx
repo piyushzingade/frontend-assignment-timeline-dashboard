@@ -1,5 +1,6 @@
 import type { HourBucket } from '../types'
 import { formatDurationMinutes, formatSeconds } from '../lib/time'
+import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material'
 
 type Row = {
   label: string
@@ -20,43 +21,43 @@ const rows: Row[] = [
 
 export function HourlySummaryTable({ buckets }: { buckets: HourBucket[] }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+    <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-4">
         <h2 className="text-base font-semibold text-slate-950">Hourly Production & Downtime Summary</h2>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-white px-4 py-3 text-left font-semibold text-slate-800">
+      <TableContainer>
+        <Table className="min-w-[980px]" size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell className="sticky left-0 z-10 border-r border-slate-200 bg-white font-semibold text-slate-800">
                 Param
-              </th>
+              </TableCell>
               {buckets.map((bucket) => (
-                <th className="border-b border-r border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-blue-900" key={bucket.key}>
+                <TableCell align="center" className="border-r border-slate-200 bg-slate-50 font-semibold text-blue-900" key={bucket.key}>
                   {bucket.label}
-                </th>
+                </TableCell>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {rows.map((row) => (
-              <tr className="even:bg-slate-50/65" key={row.label}>
-                <th className="sticky left-0 z-10 border-b border-r border-slate-200 bg-inherit px-4 py-3 text-left font-medium text-slate-700">
+              <TableRow className="even:bg-slate-50/65" key={row.label}>
+                <TableCell component="th" scope="row" className="sticky left-0 z-10 border-r border-slate-200 bg-inherit font-medium text-slate-700">
                   {row.label}
-                </th>
+                </TableCell>
                 {buckets.map((bucket) => {
                   const value = row.getValue(bucket)
                   return (
-                    <td className="border-b border-r border-slate-200 px-4 py-3 text-center font-semibold text-slate-800" key={bucket.key}>
+                    <TableCell align="center" className="border-r border-slate-200 font-semibold text-slate-800" key={bucket.key}>
                       {value ?? ''}
-                    </td>
+                    </TableCell>
                   )
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Paper>
   )
 }

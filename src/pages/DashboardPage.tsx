@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Switch } from '@base-ui/react'
-import { CalendarDays, LogOut, RefreshCw } from 'lucide-react'
-import { useAuth } from '../auth/AuthContext'
+import {
+  Alert,
+  Button,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  TextField,
+} from '@mui/material'
+import { LogOut, RefreshCw } from 'lucide-react'
+import { useAuth } from '../auth/useAuth'
 import { HourlySummaryTable } from '../components/HourlySummaryTable'
 import { Spinner } from '../components/Spinner'
 import { TimelineChart } from '../components/TimelineChart'
@@ -117,15 +128,15 @@ export function DashboardPage() {
     return () => dataAbortController.current?.abort()
   }, [])
 
-  const segments = useMemo(() => (intervals ? normalizeSegments(intervals) : []), [intervals])
+  const segments = useMemo(() => (intervals && window ? normalizeSegments(intervals, window.from, window.to) : []), [intervals, window])
   const chartMarkers = useMemo(() => {
     if (!intervals) return []
     return showIndividual ? flattenProduces(intervals.produces) : markersFromCounts(intervals.produce_counts)
   }, [intervals, showIndividual])
   const tableBuckets = useMemo(() => {
     if (!intervals || !window) return []
-    return buildHourBuckets(window.from, window.to, intervals, cycleTimes)
-  }, [cycleTimes, intervals, window])
+    return buildHourBuckets(window.from, window.to, segments, intervals.produce_counts, cycleTimes)
+  }, [cycleTimes, intervals, segments, window])
   const isEmpty = intervals ? !segments.length && !intervals.produce_counts.length && !intervals.produces?.length : false
   const lastProduce = chartMarkers.length ? chartMarkers.reduce((latest, marker) => (marker.timeMs > latest.timeMs ? marker : latest)) : null
 
@@ -143,10 +154,10 @@ export function DashboardPage() {
               <p className="text-xs text-slate-500">{user?.email}</p>
             </div>
             <Button
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-700/20"
               onClick={logout}
+              startIcon={<LogOut size={16} />}
+              variant="outlined"
             >
-              <LogOut size={16} />
               Logout
             </Button>
           </div>
@@ -154,58 +165,65 @@ export function DashboardPage() {
       </header>
 
       <div className="mx-auto max-w-[1600px] space-y-4 px-5 py-5">
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           {initialLoading ? (
             <Spinner label="Loading filters" />
           ) : (
             <div className="flex flex-wrap items-end gap-3">
-              <label className="grid min-w-56 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Asset
-                <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-700/20" value={selectedAssetId} onChange={(event) => setSelectedAssetId(event.target.value)}>
-                  {assetOptions.map((asset) => (
-                    <option key={asset.node.id} value={asset.node.id}>
-                      {asset.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Date
-                <span className="relative">
-                  <input className="h-10 rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-700/20" max="2026-06-25" min="2026-06-22" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
-                  <CalendarDays className="pointer-events-none absolute right-3 top-3 text-slate-400" size={16} />
-                </span>
-              </label>
-
-              <label className="grid min-w-56 gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Shift
-                <select className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium normal-case tracking-normal text-slate-900 outline-none focus:border-blue-700 focus:ring-4 focus:ring-blue-700/20" value={selectedShiftKey} onChange={(event) => setSelectedShiftKey(event.target.value)}>
-                  {shiftOptions.map((shift) => (
-                    <option key={shift.key} value={shift.key}>
-                      {shift.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex h-10 items-center gap-3 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700">
-                <Switch.Root
-                  checked={showIndividual}
-                  className="relative h-5 w-9 rounded-full bg-slate-300 outline-none transition data-[checked]:bg-blue-700 focus:ring-4 focus:ring-blue-700/20"
-                  onCheckedChange={setShowIndividual}
+              <FormControl className="min-w-56" size="small">
+                <InputLabel id="asset-select-label">Asset</InputLabel>
+                <Select
+                  label="Asset"
+                  labelId="asset-select-label"
+                  onChange={(event) => setSelectedAssetId(event.target.value)}
+                  value={selectedAssetId}
                 >
-                  <Switch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition data-[checked]:translate-x-4" />
-                </Switch.Root>
-                Show individual produces
-              </label>
+                  {assetOptions.map((asset) => (
+                    <MenuItem key={asset.node.id} value={asset.node.id}>
+                      {asset.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <TextField
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: '2026-06-22', max: '2026-06-25' }}
+                label="Date"
+                onChange={(event) => setDate(event.target.value)}
+                size="small"
+                type="date"
+                value={date}
+              />
+
+              <FormControl className="min-w-56" size="small">
+                <InputLabel id="shift-select-label">Shift</InputLabel>
+                <Select
+                  label="Shift"
+                  labelId="shift-select-label"
+                  onChange={(event) => setSelectedShiftKey(event.target.value)}
+                  value={selectedShiftKey}
+                >
+                  {shiftOptions.map((shift) => (
+                    <MenuItem key={shift.key} value={shift.key}>
+                      {shift.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControlLabel
+                className="h-10 rounded-md border border-slate-200 px-3"
+                control={<Switch checked={showIndividual} onChange={(event) => setShowIndividual(event.target.checked)} />}
+                label="Show individual produces"
+              />
 
               <Button
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-700 px-4 text-sm font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-700/25 disabled:bg-slate-400"
                 disabled={dataLoading || !selectedAsset || !selectedShift}
+                startIcon={<RefreshCw className={dataLoading ? 'animate-spin' : ''} size={16} />}
                 onClick={loadData}
+                variant="contained"
               >
-                <RefreshCw className={dataLoading ? 'animate-spin' : ''} size={16} />
                 Refresh
               </Button>
             </div>
@@ -220,28 +238,33 @@ export function DashboardPage() {
             ) : null}
             {showIndividual ? <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Exact produces on</span> : null}
           </div>
-        </section>
+        </Paper>
 
         {error ? (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <Alert
+            action={
+              <Button color="error" onClick={loadData} size="small">
+                Retry
+              </Button>
+            }
+            severity="error"
+            variant="outlined"
+          >
             <div className="font-semibold">Unable to load dashboard data</div>
             <p>{error}</p>
-            <Button className="mt-3 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white" onClick={loadData}>
-              Retry
-            </Button>
-          </section>
+          </Alert>
         ) : null}
 
         {dataLoading && !intervals ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <Spinner label="Loading dashboard data" />
-          </section>
+          </Paper>
         ) : null}
 
         {isEmpty ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+          <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
             No production history was returned for this asset and shift.
-          </section>
+          </Paper>
         ) : null}
 
         {intervals && window ? (

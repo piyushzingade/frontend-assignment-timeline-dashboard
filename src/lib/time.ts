@@ -7,9 +7,10 @@ export const IST_ZONE = 'Asia/Kolkata'
 export function buildShiftOptions(shifts: ShiftDefinition[]): ShiftOption[] {
   return shifts
     .filter((shift) => shift.is_active && shift.shift_timings.length > 0)
-    .flatMap((shift) =>
-      shift.shift_timings.map((startTime, index) => {
-        const endTime = shift.shift_timings[(index + 1) % shift.shift_timings.length]
+    .flatMap((shift) => {
+      const timings = shift.shift_timings.filter(isValidTime).toSorted()
+      return timings.map((startTime, index) => {
+        const endTime = timings[(index + 1) % timings.length]
         return {
           key: `${shift.id}:${index}`,
           shiftId: shift.id,
@@ -18,8 +19,12 @@ export function buildShiftOptions(shifts: ShiftDefinition[]): ShiftOption[] {
           endTime,
           label: `${shift.name || shift.code} (${startTime} - ${endTime})`,
         }
-      }),
-    )
+      })
+    })
+}
+
+function isValidTime(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
 }
 
 export function getShiftWindow(date: string, option: ShiftOption) {

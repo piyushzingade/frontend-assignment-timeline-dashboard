@@ -7,7 +7,7 @@ React 18 + TypeScript + Vite implementation of the frontend assignment.
 - React 18
 - TypeScript
 - Vite
-- Base UI
+- MUI v6
 - Tailwind CSS
 
 ## Run Locally
@@ -18,11 +18,13 @@ cp .env.example .env
 npm run dev
 ```
 
-The backend base URL is configured with `VITE_BACKEND_BASE_URL`. The default is the assignment backend:
+The backend base URL is configured with `VITE_API_BASE_URL`. The default is the assignment backend:
 
 ```bash
-VITE_BACKEND_BASE_URL=https://fractaldmsdev.centralindia.cloudapp.azure.com
+VITE_API_BASE_URL=https://fractaldmsdev.centralindia.cloudapp.azure.com
 ```
+
+Use data dates from 22-25 June 2026.
 
 ## Checks
 

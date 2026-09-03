@@ -1,16 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, clearStoredToken, getStoredToken, setUnauthorizedHandler, storeToken } from '../lib/api'
 import type { CurrentUser } from '../types'
+import { AuthContext } from './auth-context'
 
-type AuthState = {
+export type AuthState = {
   user: CurrentUser | null
   booting: boolean
   token: string | null
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
-
-const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState(() => getStoredToken())
@@ -72,10 +71,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({ user, booting, token, login, logout }), [user, booting, token, login, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used inside AuthProvider')
-  return context
 }

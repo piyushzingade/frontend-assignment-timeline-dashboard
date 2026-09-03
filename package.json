@@ -8,10 +8,13 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:run": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@base-ui/react": "^1.7.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^6.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "date-fns": "^4.4.0",
     "date-fns-tz": "^3.2.0",

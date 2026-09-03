@@ -9,7 +9,9 @@ import type {
   ShiftDefinition,
 } from '../types'
 
-const BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL ?? 'https://fractaldmsdev.centralindia.cloudapp.azure.com'
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  'https://fractaldmsdev.centralindia.cloudapp.azure.com'
 const TOKEN_KEY = 'timeline-dashboard-token'
 
 type ApiOptions = {
@@ -37,15 +39,15 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 }
 
 export function getStoredToken() {
-  return localStorage.getItem(TOKEN_KEY)
+  return sessionStorage.getItem(TOKEN_KEY)
 }
 
 export function storeToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token)
+  sessionStorage.setItem(TOKEN_KEY, token)
 }
 
 export function clearStoredToken() {
-  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
 }
 
 async function request<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}) {

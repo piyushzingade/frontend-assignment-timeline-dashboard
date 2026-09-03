@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Paper } from '@mui/material'
 import type { ChartMarker, ChartSegment } from '../types'
 import { formatIst } from '../lib/time'
 import { thinMarkers } from '../lib/transforms'
@@ -156,7 +157,7 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-950">Production History</h2>
@@ -209,7 +210,7 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
         <span className="rounded-full border border-slate-300 px-3 py-1">Drag to zoom into a time range · double-click to reset</span>
         <span className="rounded-full border border-slate-300 px-3 py-1">FAIL markers are always preserved when thinning</span>
       </div>
-    </section>
+    </Paper>
   )
 }
 
