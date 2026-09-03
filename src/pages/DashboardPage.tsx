@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Switch } from '@base-ui/react'
 import { CalendarDays, LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
@@ -32,6 +32,7 @@ export function DashboardPage() {
   const [error, setError] = useState('')
   const [intervals, setIntervals] = useState<MachineIntervals | null>(null)
   const [cycleTimes, setCycleTimes] = useState<CycleTimeBucket[]>([])
+  const dataRequestId = useRef(0)
 
   const assetOptions = useMemo(() => flattenAssets(assets), [assets])
   const shiftOptions = useMemo(() => buildShiftOptions(shifts), [shifts])
@@ -79,6 +80,8 @@ export function DashboardPage() {
 
   const loadData = useCallback(async () => {
     if (!selectedAsset || !window) return
+    const requestId = dataRequestId.current + 1
+    dataRequestId.current = requestId
     setDataLoading(true)
     setError('')
     try {
@@ -87,14 +90,16 @@ export function DashboardPage() {
         api.machineIntervals(scope, window.fromIso, window.toIso, showIndividual),
         api.cycleTimes(scope, window.fromIso, window.toIso),
       ])
+      if (requestId !== dataRequestId.current) return
       setIntervals(nextIntervals)
       setCycleTimes(nextCycleTimes)
     } catch (err) {
+      if (requestId !== dataRequestId.current) return
       setError(messageForError(err))
       setIntervals(null)
       setCycleTimes([])
     } finally {
-      setDataLoading(false)
+      if (requestId === dataRequestId.current) setDataLoading(false)
     }
   }, [selectedAsset, showIndividual, window])
 

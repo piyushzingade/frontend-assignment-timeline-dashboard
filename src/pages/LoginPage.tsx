@@ -9,8 +9,8 @@ import { useAuth } from '../auth/AuthContext'
 export function LoginPage() {
   const { login, token, user } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('analytics_user')
-  const [password, setPassword] = useState('dashboard123')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
