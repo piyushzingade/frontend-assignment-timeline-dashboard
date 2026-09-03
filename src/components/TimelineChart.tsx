@@ -17,6 +17,12 @@ type HoverState = {
   marker: ChartMarker
 } | null
 
+type PlotPoint = {
+  marker: ChartMarker
+  x: number
+  y: number
+}
+
 const colors: Record<ChartSegment['kind'], string> = {
   runtime: '#2ea99a',
   'unplanned-production': '#c7dc3d',
@@ -39,6 +45,7 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
   const [dragStart, setDragStart] = useState<number | null>(null)
   const [dragCurrent, setDragCurrent] = useState<number | null>(null)
   const [hover, setHover] = useState<HoverState>(null)
+  const dragFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
     setDomain({ start: from.getTime(), end: to.getTime() })
@@ -53,6 +60,14 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (dragFrameRef.current !== null) cancelAnimationFrame(dragFrameRef.current)
+    }
+  }, [])
+
+  const plot = useMemo(() => getPlot(size.width, size.height), [size.height, size.width])
+
   const visibleMarkers = useMemo(() => {
     const filtered = markers.filter((marker) => marker.timeMs >= domain.start && marker.timeMs <= domain.end)
     return showIndividual ? thinMarkers(filtered, 4500) : filtered
@@ -61,8 +76,13 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
   const maxY = useMemo(() => {
     if (!visibleMarkers.length) return 1
     if (!showIndividual) return Math.max(...visibleMarkers.map((marker) => marker.count ?? 0), 1)
-    return Math.max(markers.findIndex((marker) => marker.id === visibleMarkers.at(-1)?.id) + 1, visibleMarkers.length, 1)
-  }, [markers, showIndividual, visibleMarkers])
+    return Math.max(markers.length, visibleMarkers.length, 1)
+  }, [markers.length, showIndividual, visibleMarkers])
+
+  const plotPoints = useMemo(
+    () => makePlotPoints(visibleMarkers, maxY, domain.start, domain.end, plot, showIndividual),
+    [domain.end, domain.start, maxY, plot, showIndividual, visibleMarkers],
+  )
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -78,10 +98,9 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, size.width, size.height)
 
-    const plot = getPlot(size.width, size.height)
     drawFrame(ctx, plot, size.width, size.height)
     drawSegments(ctx, plot, segments, domain.start, domain.end)
-    drawMarkers(ctx, plot, visibleMarkers, maxY, domain.start, domain.end, showIndividual)
+    drawMarkers(ctx, plotPoints, showIndividual)
     drawTicks(ctx, plot, domain.start, domain.end)
 
     if (dragStart !== null && dragCurrent !== null) {
@@ -90,47 +109,41 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
       const end = Math.max(pointerXToCanvas(dragStart, plot), pointerXToCanvas(dragCurrent, plot))
       ctx.fillRect(start, plot.top, end - start, plot.height)
     }
-  }, [domain.end, domain.start, dragCurrent, dragStart, markers, maxY, segments, showIndividual, size.height, size.width, visibleMarkers])
-
-  function xFor(ms: number) {
-    const plot = getPlot(size.width, size.height)
-    return plot.left + ((ms - domain.start) / (domain.end - domain.start)) * plot.width
-  }
-
-  function yFor(marker: ChartMarker) {
-    const plot = getPlot(size.width, size.height)
-    const raw = showIndividual ? marker.sequence : marker.count ?? 0
-    return plot.bottom - (raw / maxY) * plot.height
-  }
+  }, [domain.end, domain.start, dragCurrent, dragStart, plot, plotPoints, segments, showIndividual, size.height, size.width])
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
-    const plot = getPlot(size.width, size.height)
 
     if (event.buttons === 1 && dragStart !== null) {
-      setDragCurrent(x)
+      if (dragFrameRef.current !== null) cancelAnimationFrame(dragFrameRef.current)
+      dragFrameRef.current = requestAnimationFrame(() => {
+        setDragCurrent(x)
+        dragFrameRef.current = null
+      })
       return
     }
 
-    let closest: { marker: ChartMarker; distance: number } | null = null
-    for (const marker of visibleMarkers) {
-      const dx = xFor(marker.timeMs) - x
-      const dy = yFor(marker) - y
+    let closest: { point: PlotPoint; distance: number } | null = null
+    const startIndex = lowerBoundByX(plotPoints, x - 12)
+    for (let index = startIndex; index < plotPoints.length; index += 1) {
+      const point = plotPoints[index]
+      if (point.x > x + 12) break
+      const dx = point.x - x
+      const dy = point.y - y
       const distance = dx * dx + dy * dy
       if (distance < 144 && (!closest || distance < closest.distance)) {
-        closest = { marker, distance }
+        closest = { point, distance }
       }
     }
-    setHover(closest ? { x: Math.min(Math.max(x, plot.left), plot.right - 160), y, marker: closest.marker } : null)
+    setHover(closest ? { x: Math.min(Math.max(x, plot.left), plot.right - 160), y, marker: closest.point.marker } : null)
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
     if (dragStart === null) return
     const rect = event.currentTarget.getBoundingClientRect()
     const dragEnd = event.clientX - rect.left
-    const plot = getPlot(size.width, size.height)
     const start = Math.min(dragStart, dragEnd)
     const end = Math.max(dragStart, dragEnd)
     setDragStart(null)
@@ -272,23 +285,39 @@ function drawSegments(
   }
 }
 
-function drawMarkers(
-  ctx: CanvasRenderingContext2D,
-  plot: ReturnType<typeof getPlot>,
+function makePlotPoints(
   visibleMarkers: ChartMarker[],
   maxY: number,
   start: number,
   end: number,
+  plot: ReturnType<typeof getPlot>,
   showIndividual: boolean,
 ) {
-  if (!visibleMarkers.length) return
-
-  const points = visibleMarkers.map((marker) => {
+  return visibleMarkers.map((marker) => {
     const x = plot.left + ((marker.timeMs - start) / (end - start)) * plot.width
-      const indexY = showIndividual ? marker.sequence : marker.count ?? 0
+    const indexY = showIndividual ? marker.sequence : marker.count ?? 0
     const y = plot.bottom - (indexY / maxY) * plot.height
     return { marker, x, y }
   })
+}
+
+function lowerBoundByX(points: PlotPoint[], x: number) {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (points[middle].x < x) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+function drawMarkers(
+  ctx: CanvasRenderingContext2D,
+  points: PlotPoint[],
+  showIndividual: boolean,
+) {
+  if (!points.length) return
 
   if (!showIndividual && points.length > 1) {
     ctx.strokeStyle = '#2563eb'

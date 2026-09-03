@@ -15,6 +15,7 @@ const TOKEN_KEY = 'timeline-dashboard-token'
 type ApiOptions = {
   auth?: boolean
   retry?: boolean
+  signal?: AbortSignal
 }
 
 export class ApiError extends Error {
@@ -61,7 +62,7 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
         if (token) headers.set('Authorization', `Bearer ${token}`)
       }
 
-      const response = await fetch(`${BASE_URL}${path}`, { ...init, headers })
+      const response = await fetch(`${BASE_URL}${path}`, { ...init, headers, signal: options.signal })
       const payload = (await response.json().catch(() => null)) as Envelope<T> | null
       const status = payload?.status_code ?? response.status
       const message = payload?.message ?? response.statusText
@@ -78,12 +79,16 @@ async function request<T>(path: string, init: RequestInit = {}, options: ApiOpti
       return payload?.data as T
     } catch (error) {
       lastError = error
-      if (error instanceof ApiError || attempt === attempts - 1) throw error
+      if (isAbortError(error) || error instanceof ApiError || attempt === attempts - 1) throw error
       await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)))
     }
   }
 
   throw lastError
+}
+
+export function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
 }
 
 export const api = {
@@ -106,7 +111,7 @@ export const api = {
   shifts() {
     return request<ShiftDefinition[]>('/core/shifts', {}, { auth: true })
   },
-  machineIntervals(entityScope: EntityScope, fromIso: string, toIso: string, exactProduces: boolean) {
+  machineIntervals(entityScope: EntityScope, fromIso: string, toIso: string, exactProduces: boolean, signal?: AbortSignal) {
     return request<MachineIntervals>(
       '/analytics-query/machine-intervals',
       {
@@ -119,10 +124,10 @@ export const api = {
           group_produce_counts_by_part_model: true,
         }),
       },
-      { auth: true },
+      { auth: true, signal },
     )
   },
-  cycleTimes(entityScope: EntityScope, fromIso: string, toIso: string) {
+  cycleTimes(entityScope: EntityScope, fromIso: string, toIso: string, signal?: AbortSignal) {
     return request<CycleTimeBucket[]>(
       '/analytics-query',
       {
@@ -134,7 +139,7 @@ export const api = {
           distribution: 'hourly',
         }),
       },
-      { auth: true },
+      { auth: true, signal },
     )
   },
 }

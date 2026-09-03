@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext'
 import { HourlySummaryTable } from '../components/HourlySummaryTable'
 import { Spinner } from '../components/Spinner'
 import { TimelineChart } from '../components/TimelineChart'
-import { ApiError, api } from '../lib/api'
+import { ApiError, api, isAbortError } from '../lib/api'
 import { buildShiftOptions, formatIst, getShiftWindow } from '../lib/time'
 import {
   buildHourBuckets,
@@ -33,6 +33,7 @@ export function DashboardPage() {
   const [intervals, setIntervals] = useState<MachineIntervals | null>(null)
   const [cycleTimes, setCycleTimes] = useState<CycleTimeBucket[]>([])
   const dataRequestId = useRef(0)
+  const dataAbortController = useRef<AbortController | null>(null)
 
   const assetOptions = useMemo(() => flattenAssets(assets), [assets])
   const shiftOptions = useMemo(() => buildShiftOptions(shifts), [shifts])
@@ -82,23 +83,28 @@ export function DashboardPage() {
     if (!selectedAsset || !window) return
     const requestId = dataRequestId.current + 1
     dataRequestId.current = requestId
+    dataAbortController.current?.abort()
+    const abortController = new AbortController()
+    dataAbortController.current = abortController
     setDataLoading(true)
     setError('')
     try {
       const scope = getEntityScope(selectedAsset)
       const [nextIntervals, nextCycleTimes] = await Promise.all([
-        api.machineIntervals(scope, window.fromIso, window.toIso, showIndividual),
-        api.cycleTimes(scope, window.fromIso, window.toIso),
+        api.machineIntervals(scope, window.fromIso, window.toIso, showIndividual, abortController.signal),
+        api.cycleTimes(scope, window.fromIso, window.toIso, abortController.signal),
       ])
       if (requestId !== dataRequestId.current) return
       setIntervals(nextIntervals)
       setCycleTimes(nextCycleTimes)
     } catch (err) {
+      if (isAbortError(err)) return
       if (requestId !== dataRequestId.current) return
       setError(messageForError(err))
       setIntervals(null)
       setCycleTimes([])
     } finally {
+      if (dataAbortController.current === abortController) dataAbortController.current = null
       if (requestId === dataRequestId.current) setDataLoading(false)
     }
   }, [selectedAsset, showIndividual, window])
@@ -106,6 +112,10 @@ export function DashboardPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    return () => dataAbortController.current?.abort()
+  }, [])
 
   const segments = useMemo(() => (intervals ? normalizeSegments(intervals) : []), [intervals])
   const chartMarkers = useMemo(() => {

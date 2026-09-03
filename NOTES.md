@@ -26,6 +26,8 @@ Timeline segments are normalized once into numeric millisecond positions. Indivi
 
 When the individual-produce toggle is off, the chart uses hourly `produce_counts`. When it is on, the request sends `exact_produces: true`. The render path thins non-failing markers if needed, but it always keeps every `FAIL` marker. Colors, parsed timestamps, and marker geometry inputs are resolved before drawing rather than parsed per marker in JSX.
 
+For hover, the chart precomputes plotted canvas points for the current domain and uses a binary-search window around the pointer's x-position instead of scanning every visible marker on every pointer move. Drag updates are also scheduled through `requestAnimationFrame`. Superseded dashboard requests are aborted with `AbortController`, which matters when an exact-produces request is replaced by another filter change.
+
 ## Time And Bucketing
 
 The UI treats shift timings as IST (`Asia/Kolkata`). A selected date plus shift start/end creates the local shift window; if the end time is less than or equal to the start, the end is moved to the next day. That window is converted to UTC ISO strings for API calls.
