@@ -234,9 +234,9 @@ export function DashboardPage() {
                 </FormControl>
               </div>
 
-              <div>
+              <div className="w-fit">
                 <FieldLabel id="machine-select-label">Machine (optional)</FieldLabel>
-                <FormControl className="min-w-56" size="small">
+                <FormControl className="w-full" size="small">
                   <Select
                     labelId="machine-select-label"
                     onChange={(event) => setSelectedMachineId(event.target.value)}
