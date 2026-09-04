@@ -236,7 +236,7 @@ export function DashboardPage() {
 
               <div>
                 <FieldLabel id="machine-select-label">Machine (optional)</FieldLabel>
-                <FormControl className="min-w-36" size="small">
+                <FormControl className="min-w-56" size="small">
                   <Select
                     labelId="machine-select-label"
                     onChange={(event) => setSelectedMachineId(event.target.value)}
