@@ -5,6 +5,7 @@ import { Alert, Button, Paper, TextField } from '@mui/material'
 import { ActivitySquare } from 'lucide-react'
 import { ApiError } from '../lib/api'
 import { useAuth } from '../auth/useAuth'
+import { FieldLabel } from '../components/FieldLabel'
 
 export function LoginPage() {
   const { login, token, user } = useAuth()
@@ -58,24 +59,30 @@ export function LoginPage() {
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
-          <TextField
-            autoComplete="username"
-            fullWidth
-            label="Username"
-            onChange={(event) => setUsername(event.target.value)}
-            size="small"
-            value={username}
-          />
+          <div>
+            <FieldLabel htmlFor="login-username">Username</FieldLabel>
+            <TextField
+              autoComplete="username"
+              fullWidth
+              id="login-username"
+              onChange={(event) => setUsername(event.target.value)}
+              size="small"
+              value={username}
+            />
+          </div>
 
-          <TextField
-            autoComplete="current-password"
-            fullWidth
-            label="Password"
-            onChange={(event) => setPassword(event.target.value)}
-            size="small"
-            type="password"
-            value={password}
-          />
+          <div>
+            <FieldLabel htmlFor="login-password">Password</FieldLabel>
+            <TextField
+              autoComplete="current-password"
+              fullWidth
+              id="login-password"
+              onChange={(event) => setPassword(event.target.value)}
+              size="small"
+              type="password"
+              value={password}
+            />
+          </div>
 
           {error ? (
             <Alert severity="error" variant="outlined">

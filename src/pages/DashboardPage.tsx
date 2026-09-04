@@ -3,16 +3,14 @@ import {
   Alert,
   Button,
   FormControl,
-  FormControlLabel,
-  InputLabel,
   MenuItem,
   Paper,
   Select,
-  Switch,
   TextField,
 } from '@mui/material'
 import { LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
+import { FieldLabel } from '../components/FieldLabel'
 import { HourlySummaryTable } from '../components/HourlySummaryTable'
 import { Spinner } from '../components/Spinner'
 import { TimelineChart } from '../components/TimelineChart'
@@ -169,53 +167,51 @@ export function DashboardPage() {
             <Spinner label="Loading filters" />
           ) : (
             <div className="flex flex-wrap items-end gap-3">
-              <FormControl className="min-w-56" size="small">
-                <InputLabel id="asset-select-label">Asset</InputLabel>
-                <Select
-                  label="Asset"
-                  labelId="asset-select-label"
-                  onChange={(event) => setSelectedAssetId(event.target.value)}
-                  value={selectedAssetId}
-                >
-                  {assetOptions.map((asset) => (
-                    <MenuItem key={asset.node.id} value={asset.node.id}>
-                      {asset.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <div>
+                <FieldLabel id="asset-select-label">Asset</FieldLabel>
+                <FormControl className="min-w-56" size="small">
+                  <Select
+                    labelId="asset-select-label"
+                    onChange={(event) => setSelectedAssetId(event.target.value)}
+                    value={selectedAssetId}
+                  >
+                    {assetOptions.map((asset) => (
+                      <MenuItem key={asset.node.id} value={asset.node.id}>
+                        {asset.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
 
-              <TextField
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: '2026-06-22', max: '2026-06-25' }}
-                label="Date"
-                onChange={(event) => setDate(event.target.value)}
-                size="small"
-                type="date"
-                value={date}
-              />
+              <div>
+                <FieldLabel htmlFor="filter-date">Date</FieldLabel>
+                <TextField
+                  id="filter-date"
+                  inputProps={{ min: '2026-06-22', max: '2026-06-25' }}
+                  onChange={(event) => setDate(event.target.value)}
+                  size="small"
+                  type="date"
+                  value={date}
+                />
+              </div>
 
-              <FormControl className="min-w-56" size="small">
-                <InputLabel id="shift-select-label">Shift</InputLabel>
-                <Select
-                  label="Shift"
-                  labelId="shift-select-label"
-                  onChange={(event) => setSelectedShiftKey(event.target.value)}
-                  value={selectedShiftKey}
-                >
-                  {shiftOptions.map((shift) => (
-                    <MenuItem key={shift.key} value={shift.key}>
-                      {shift.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControlLabel
-                className="h-10 rounded-md border border-slate-200 px-3"
-                control={<Switch checked={showIndividual} onChange={(event) => setShowIndividual(event.target.checked)} />}
-                label="Show individual produces"
-              />
+              <div>
+                <FieldLabel id="shift-select-label">Shift</FieldLabel>
+                <FormControl className="min-w-56" size="small">
+                  <Select
+                    labelId="shift-select-label"
+                    onChange={(event) => setSelectedShiftKey(event.target.value)}
+                    value={selectedShiftKey}
+                  >
+                    {shiftOptions.map((shift) => (
+                      <MenuItem key={shift.key} value={shift.key}>
+                        {shift.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
 
               <Button
                 disabled={dataLoading || !selectedAsset || !selectedShift}
