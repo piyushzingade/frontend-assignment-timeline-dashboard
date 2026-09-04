@@ -32,6 +32,20 @@ When the individual-produce toggle is off, the chart uses hourly `produce_counts
 
 For hover, the chart precomputes plotted canvas points for the current domain and uses a binary-search window around the pointer's x-position instead of scanning every visible marker on every pointer move. Drag updates are also scheduled through `requestAnimationFrame`. Superseded dashboard requests are aborted with `AbortController`, which matters when an exact-produces request is replaced by another filter change.
 
+## Production History Chart
+
+Status bands fill the full plot height and the cumulative line is clipped to the plot frame with a fixed vertical inset (`LINE_PAD_TOP`/`LINE_PAD_BOTTOM`), so the line and its dots always stay inside the colored bands and never paint over the border.
+
+The Y-axis is a data-driven nice axis with three ticks (0, step, 2 × step), so a max of 460 renders as 0 - 250 - 500. Points, tick marks, and labels share one `yToCanvas` mapping. X ticks use a span-based step (15m/30m/1h/2h, capped at ~7 ticks) from the domain start through the domain end, with edge labels clamped inward.
+
+Zoom is Shift + drag (plain drag is reserved for hover); double-click resets the domain. A blue NOW line and badge render when the current time falls inside the domain. Cumulative mode shows per-point value labels with a white halo (toggleable via Point labels, off in individual mode where dots are dense). A Part Models row lists distinct part models from the markers, and the Last-observed-produce and unknown-segments (count + minutes) badges live inside the card below the hint pills.
+
+## Filters And Labels
+
+All labeled fields use a shared `FieldLabel` rendered above the input (login Username/Password; filter Asset level/Asset/Machine/Date/Shift) instead of MUI's border-notch labels. The Show-individual-produces toggle lives only inside the Production History card and syncs back to the page state.
+
+Asset Level and Machine (optional) are client-side only: the backend exposes no level or machine endpoints, so levels are the distinct `assetlevel_id` values from `/core/assets/tree` (All Levels + Level `<id>`) and machines are the direct children of the selected asset. Picking a machine queries that child node as the entity scope; changing the level or asset resets the machine.
+
 ## Time And Bucketing
 
 The UI treats shift timings as IST (`Asia/Kolkata`). A selected date plus shift start/end creates the local shift window; if the end time is less than or equal to the start, the end is moved to the next day. That window is converted to UTC ISO strings for API calls.
