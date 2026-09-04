@@ -238,8 +238,16 @@ export function DashboardPage() {
                 <FieldLabel id="machine-select-label">Machine (optional)</FieldLabel>
                 <FormControl className="w-full" size="small">
                   <Select
+                    displayEmpty
                     labelId="machine-select-label"
                     onChange={(event) => setSelectedMachineId(event.target.value)}
+                    renderValue={(value) =>
+                      value === '' ? (
+                        <span className="text-slate-400">Select machine</span>
+                      ) : (
+                        machineOptions.find((machine) => machine.id === value)?.name ?? ''
+                      )
+                    }
                     value={selectedMachineId}
                   >
                     <MenuItem value="">–</MenuItem>
