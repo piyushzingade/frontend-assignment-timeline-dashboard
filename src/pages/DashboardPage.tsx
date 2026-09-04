@@ -6,13 +6,14 @@ import {
   MenuItem,
   Paper,
   Select,
+  Skeleton,
   TextField,
 } from '@mui/material'
 import { LogOut, RefreshCw } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
 import { FieldLabel } from '../components/FieldLabel'
 import { HourlySummaryTable } from '../components/HourlySummaryTable'
-import { Spinner } from '../components/Spinner'
+import { ChartSkeleton, FilterBarSkeleton, TableSkeleton } from '../components/Skeletons'
 import { TimelineChart } from '../components/TimelineChart'
 import { ApiError, api, isAbortError } from '../lib/api'
 import { buildShiftOptions, formatIst, getShiftWindow } from '../lib/time'
@@ -183,7 +184,7 @@ export function DashboardPage() {
       <div className="mx-auto max-w-[1600px] space-y-4 px-5 py-5">
         <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           {initialLoading ? (
-            <Spinner label="Loading filters" />
+            <FilterBarSkeleton />
           ) : (
             <div className="flex flex-wrap items-end gap-3">
               <div>
@@ -301,13 +302,22 @@ export function DashboardPage() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-            {selectedAssetLabel ? <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">{selectedAssetLabel}</span> : null}
-            {window ? (
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
-                {formatIst(window.from, 'dd MMM, HH:mm')} - {formatIst(window.to, 'dd MMM, HH:mm')}
-              </span>
-            ) : null}
-            {showIndividual ? <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Exact produces on</span> : null}
+            {initialLoading ? (
+              <>
+                <Skeleton animation="wave" className="w-32" height={24} variant="rounded" />
+                <Skeleton animation="wave" className="w-56" height={24} variant="rounded" />
+              </>
+            ) : (
+              <>
+                {selectedAssetLabel ? <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">{selectedAssetLabel}</span> : null}
+                {window ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+                    {formatIst(window.from, 'dd MMM, HH:mm')} - {formatIst(window.to, 'dd MMM, HH:mm')}
+                  </span>
+                ) : null}
+                {showIndividual ? <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">Exact produces on</span> : null}
+              </>
+            )}
           </div>
         </Paper>
 
@@ -327,9 +337,10 @@ export function DashboardPage() {
         ) : null}
 
         {dataLoading && !intervals ? (
-          <Paper component="section" elevation={1} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <Spinner label="Loading dashboard data" />
-          </Paper>
+          <>
+            <ChartSkeleton />
+            <TableSkeleton />
+          </>
         ) : null}
 
         {isEmpty ? (
