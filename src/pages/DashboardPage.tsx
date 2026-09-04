@@ -33,6 +33,8 @@ export function DashboardPage() {
   const [assets, setAssets] = useState<AssetNode[]>([])
   const [shifts, setShifts] = useState<ShiftDefinition[]>([])
   const [selectedAssetId, setSelectedAssetId] = useState('')
+  const [selectedLevelId, setSelectedLevelId] = useState('all')
+  const [selectedMachineId, setSelectedMachineId] = useState('')
   const [selectedShiftKey, setSelectedShiftKey] = useState('')
   const [date, setDate] = useState(DEFAULT_DATE)
   const [showIndividual, setShowIndividual] = useState(false)
@@ -46,14 +48,31 @@ export function DashboardPage() {
 
   const assetOptions = useMemo(() => flattenAssets(assets), [assets])
   const shiftOptions = useMemo(() => buildShiftOptions(shifts), [shifts])
+  const levelOptions = useMemo(
+    () => [...new Set(assetOptions.map((asset) => asset.node.assetlevel_id))].sort((a, b) => a - b),
+    [assetOptions],
+  )
+  const filteredAssetOptions = useMemo(
+    () => (selectedLevelId === 'all' ? assetOptions : assetOptions.filter((asset) => String(asset.node.assetlevel_id) === selectedLevelId)),
+    [assetOptions, selectedLevelId],
+  )
   const selectedAsset = useMemo(
     () => assetOptions.find((asset) => asset.node.id === selectedAssetId)?.node,
     [assetOptions, selectedAssetId],
   )
-  const selectedAssetLabel = useMemo(
-    () => assetOptions.find((asset) => asset.node.id === selectedAssetId)?.label ?? '',
-    [assetOptions, selectedAssetId],
+  // Best-effort machines: direct children of the selected asset.
+  // The backend has no machine endpoint, so picking one queries that child node.
+  const machineOptions = useMemo(() => selectedAsset?.children ?? [], [selectedAsset])
+  const selectedMachine = useMemo(
+    () => machineOptions.find((machine) => machine.id === selectedMachineId),
+    [machineOptions, selectedMachineId],
   )
+  const scopeAsset = selectedMachine ?? selectedAsset
+  const selectedAssetLabel = useMemo(() => {
+    const assetEntry = assetOptions.find((asset) => asset.node.id === selectedAssetId)
+    if (!assetEntry) return ''
+    return selectedMachine ? `${assetEntry.label} / ${selectedMachine.name}` : assetEntry.label
+  }, [assetOptions, selectedAssetId, selectedMachine])
   const selectedShift = useMemo(
     () => shiftOptions.find((shift) => shift.key === selectedShiftKey),
     [selectedShiftKey, shiftOptions],
@@ -89,7 +108,7 @@ export function DashboardPage() {
   }, [])
 
   const loadData = useCallback(async () => {
-    if (!selectedAsset || !window) return
+    if (!scopeAsset || !window) return
     const requestId = dataRequestId.current + 1
     dataRequestId.current = requestId
     dataAbortController.current?.abort()
@@ -98,7 +117,7 @@ export function DashboardPage() {
     setDataLoading(true)
     setError('')
     try {
-      const scope = getEntityScope(selectedAsset)
+      const scope = getEntityScope(scopeAsset)
       const [nextIntervals, nextCycleTimes] = await Promise.all([
         api.machineIntervals(scope, window.fromIso, window.toIso, showIndividual, abortController.signal),
         api.cycleTimes(scope, window.fromIso, window.toIso, abortController.signal),
@@ -116,7 +135,7 @@ export function DashboardPage() {
       if (dataAbortController.current === abortController) dataAbortController.current = null
       if (requestId === dataRequestId.current) setDataLoading(false)
     }
-  }, [selectedAsset, showIndividual, window])
+  }, [scopeAsset, showIndividual, window])
 
   useEffect(() => {
     loadData()
@@ -168,16 +187,65 @@ export function DashboardPage() {
           ) : (
             <div className="flex flex-wrap items-end gap-3">
               <div>
+                <FieldLabel id="level-select-label">Asset level</FieldLabel>
+                <FormControl className="min-w-36" size="small">
+                  <Select
+                    labelId="level-select-label"
+                    onChange={(event) => {
+                      const levelId = event.target.value
+                      setSelectedLevelId(levelId)
+                      setSelectedMachineId('')
+                      const visible = levelId === 'all'
+                        ? assetOptions
+                        : assetOptions.filter((asset) => String(asset.node.assetlevel_id) === levelId)
+                      if (!visible.some((asset) => asset.node.id === selectedAssetId)) {
+                        setSelectedAssetId(visible[0]?.node.id ?? '')
+                      }
+                    }}
+                    value={selectedLevelId}
+                  >
+                    <MenuItem value="all">All Levels</MenuItem>
+                    {levelOptions.map((level) => (
+                      <MenuItem key={level} value={String(level)}>
+                        Level {level}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
+
+              <div>
                 <FieldLabel id="asset-select-label">Asset</FieldLabel>
                 <FormControl className="min-w-56" size="small">
                   <Select
                     labelId="asset-select-label"
-                    onChange={(event) => setSelectedAssetId(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedAssetId(event.target.value)
+                      setSelectedMachineId('')
+                    }}
                     value={selectedAssetId}
                   >
-                    {assetOptions.map((asset) => (
+                    {filteredAssetOptions.map((asset) => (
                       <MenuItem key={asset.node.id} value={asset.node.id}>
                         {asset.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </div>
+
+              <div>
+                <FieldLabel id="machine-select-label">Machine (optional)</FieldLabel>
+                <FormControl className="min-w-36" size="small">
+                  <Select
+                    labelId="machine-select-label"
+                    onChange={(event) => setSelectedMachineId(event.target.value)}
+                    value={selectedMachineId}
+                  >
+                    <MenuItem value="">–</MenuItem>
+                    {machineOptions.map((machine) => (
+                      <MenuItem key={machine.id} value={machine.id}>
+                        {machine.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -214,7 +282,7 @@ export function DashboardPage() {
               </div>
 
               <Button
-                disabled={dataLoading || !selectedAsset || !selectedShift}
+                disabled={dataLoading || !scopeAsset || !selectedShift}
                 startIcon={<RefreshCw className={dataLoading ? 'animate-spin' : ''} size={16} />}
                 onClick={loadData}
                 variant="contained"
