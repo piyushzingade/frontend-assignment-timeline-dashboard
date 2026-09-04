@@ -101,7 +101,7 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
 
     drawFrame(ctx, plot, size.width, size.height)
     drawSegments(ctx, plot, segments, domain.start, domain.end)
-    drawMarkers(ctx, plotPoints, showIndividual)
+    drawMarkers(ctx, plot, plotPoints, showIndividual)
     drawTicks(ctx, plot, domain.start, domain.end)
 
     if (dragStart !== null && dragCurrent !== null) {
@@ -215,9 +215,9 @@ export function TimelineChart({ from, to, segments, markers, showIndividual }: T
 }
 
 function getPlot(width: number, height: number) {
-  const left = 64
-  const rightPad = 22
-  const top = 34
+  const left = 12
+  const rightPad = 12
+  const top = 36
   const bottomPad = 52
   return {
     left,
@@ -228,6 +228,11 @@ function getPlot(width: number, height: number) {
     height: height - top - bottomPad,
   }
 }
+
+// Vertical inset for the data line so dots never touch the frame
+// and always stay inside the colored status bands.
+const LINE_PAD_TOP = 16
+const LINE_PAD_BOTTOM = 14
 
 function canvasXToTime(x: number, plot: ReturnType<typeof getPlot>, start: number, end: number) {
   const clamped = Math.min(Math.max(x, plot.left), plot.right)
@@ -253,9 +258,12 @@ function drawFrame(
   ctx.strokeRect(plot.left, plot.top, plot.width, plot.height)
 
   ctx.fillStyle = '#64748b'
-  ctx.font = '12px ui-sans-serif, system-ui'
-  ctx.fillText('Cumulative production', plot.left - 54, plot.top - 10)
-  ctx.fillText('Shift time', plot.left + plot.width / 2 - 24, height - 14)
+  ctx.font = '500 12px ui-sans-serif, system-ui, sans-serif'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillText('Cumulative production', plot.left, plot.top - 12)
+  ctx.textAlign = 'center'
+  ctx.fillText('Shift time', plot.left + plot.width / 2, height - 14)
 }
 
 function drawSegments(
@@ -271,7 +279,9 @@ function drawSegments(
     const x2 = plot.left + ((Math.min(segment.endMs, end) - start) / (end - start)) * plot.width
     const width = Math.max(x2 - x, 1)
     ctx.fillStyle = colors[segment.kind]
-    ctx.fillRect(x, plot.top + 18, width, plot.height - 36)
+    // Fill the full plot height so the cumulative line always
+    // stays inside the colored portion.
+    ctx.fillRect(x, plot.top, width, plot.height)
 
     if (width > 34) {
       ctx.save()
@@ -297,7 +307,8 @@ function makePlotPoints(
   return visibleMarkers.map((marker) => {
     const x = plot.left + ((marker.timeMs - start) / (end - start)) * plot.width
     const indexY = showIndividual ? marker.sequence : marker.count ?? 0
-    const y = plot.bottom - (indexY / maxY) * plot.height
+    const usableHeight = plot.height - LINE_PAD_TOP - LINE_PAD_BOTTOM
+    const y = plot.bottom - LINE_PAD_BOTTOM - (indexY / maxY) * usableHeight
     return { marker, x, y }
   })
 }
@@ -315,14 +326,24 @@ function lowerBoundByX(points: PlotPoint[], x: number) {
 
 function drawMarkers(
   ctx: CanvasRenderingContext2D,
+  plot: ReturnType<typeof getPlot>,
   points: PlotPoint[],
   showIndividual: boolean,
 ) {
   if (!points.length) return
 
+  // Clip the line + dots to the plot frame so nothing paints
+  // over the border or outside the colored bands.
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(plot.left, plot.top, plot.width, plot.height)
+  ctx.clip()
+
   if (!showIndividual && points.length > 1) {
     ctx.strokeStyle = '#2563eb'
     ctx.lineWidth = 2
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
     ctx.beginPath()
     points.forEach((point, index) => {
       if (index === 0) ctx.moveTo(point.x, point.y)
@@ -340,6 +361,8 @@ function drawMarkers(
     ctx.fill()
     ctx.stroke()
   }
+
+  ctx.restore()
 }
 
 function drawTicks(ctx: CanvasRenderingContext2D, plot: ReturnType<typeof getPlot>, start: number, end: number) {
