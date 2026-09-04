@@ -138,7 +138,6 @@ export function DashboardPage() {
     return buildHourBuckets(window.from, window.to, segments, intervals.produce_counts, cycleTimes)
   }, [cycleTimes, intervals, segments, window])
   const isEmpty = intervals ? !segments.length && !intervals.produce_counts.length && !intervals.produces?.length : false
-  const lastProduce = chartMarkers.length ? chartMarkers.reduce((latest, marker) => (marker.timeMs > latest.timeMs ? marker : latest)) : null
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -269,17 +268,14 @@ export function DashboardPage() {
 
         {intervals && window ? (
           <>
-            <TimelineChart from={window.from} markers={chartMarkers} segments={segments} showIndividual={showIndividual} to={window.to} />
-            <div className="flex flex-wrap gap-2 text-xs font-semibold">
-              {lastProduce ? (
-                <span className="rounded-full border border-blue-800 bg-white px-3 py-1 text-blue-900">
-                  Last observed produce at: {formatIst(lastProduce.timestamp)}
-                </span>
-              ) : null}
-              <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-amber-700">
-                {segments.filter((segment) => segment.kind === 'unknown-downtime').length} unknown segments
-              </span>
-            </div>
+            <TimelineChart
+              from={window.from}
+              markers={chartMarkers}
+              onShowIndividualChange={setShowIndividual}
+              segments={segments}
+              showIndividual={showIndividual}
+              to={window.to}
+            />
             <HourlySummaryTable buckets={tableBuckets} />
           </>
         ) : null}
