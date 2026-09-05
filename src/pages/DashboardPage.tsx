@@ -3,10 +3,12 @@ import {
   Alert,
   Button,
   FormControl,
+  LinearProgress,
   MenuItem,
   Paper,
   Select,
   Skeleton,
+  Snackbar,
   TextField,
 } from '@mui/material'
 import { LogOut, RefreshCw } from 'lucide-react'
@@ -321,19 +323,8 @@ export function DashboardPage() {
           </div>
         </Paper>
 
-        {error ? (
-          <Alert
-            action={
-              <Button color="error" onClick={loadData} size="small">
-                Retry
-              </Button>
-            }
-            severity="error"
-            variant="outlined"
-          >
-            <div className="font-semibold">Unable to load dashboard data</div>
-            <p>{error}</p>
-          </Alert>
+        {dataLoading && intervals ? (
+          <LinearProgress aria-label="Refreshing dashboard data" className="rounded" />
         ) : null}
 
         {dataLoading && !intervals ? (
@@ -348,6 +339,26 @@ export function DashboardPage() {
             No production history was returned for this asset and shift.
           </Paper>
         ) : null}
+
+        <Snackbar
+          anchorOrigin={{ horizontal: 'center', vertical: 'bottom' }}
+          autoHideDuration={6000}
+          onClose={() => setError('')}
+          open={error !== ''}
+        >
+          <Alert
+            action={
+              <Button color="inherit" onClick={loadData} size="small">
+                Retry
+              </Button>
+            }
+            onClose={() => setError('')}
+            severity="error"
+            variant="filled"
+          >
+            Unable to load dashboard data — {error}
+          </Alert>
+        </Snackbar>
 
         {intervals && window ? (
           <>

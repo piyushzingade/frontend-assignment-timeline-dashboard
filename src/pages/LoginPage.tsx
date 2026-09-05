@@ -16,10 +16,10 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
+    if (user) navigate('/dashboard', { replace: true })
   }, [navigate, user])
 
-  if (token && user) return <Navigate to="/" replace />
+  if (token && user) return <Navigate to="/dashboard" replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,7 +33,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(username.trim(), password)
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError(err.message || 'Invalid username or password.')
