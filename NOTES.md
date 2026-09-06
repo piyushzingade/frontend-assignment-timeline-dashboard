@@ -12,7 +12,7 @@ The backend URL is read from `VITE_API_BASE_URL`. The default matches the assign
 
 ## Architecture
 
-The application uses React 18, TypeScript, Vite, MUI v6, and Tailwind utility classes for layout polish. API concerns live in a centralized client, auth state lives in an auth provider, and timeline/time aggregation logic is kept in pure utilities so the chart and table can share the same normalized data.
+The application uses React 18, TypeScript, Vite, MUI v6, TanStack Query, Zustand, and Tailwind utility classes for layout polish. API concerns live in a centralized client, auth state lives in an auth provider, filter selections live in a small Zustand store, server data lives in TanStack Query behind a `useDashboardData` hook, and timeline/time aggregation logic is kept in pure utilities so the chart and table can share the same normalized data. The dashboard page itself is a thin layout over `FilterBar`, `TimelineChart`, and `HourlySummaryTable`.
 
 ## Session And Token Management
 
@@ -22,7 +22,7 @@ On app load, the auth provider reads the token and validates it with `GET /auth/
 
 ## Data Fetching
 
-Filter metadata requests for assets and shifts run in parallel. Machine intervals and cycle-time requests also run in parallel once the selected entity scope and shift window are valid. Superseded dashboard requests are aborted with `AbortController`, and a request id prevents older responses from overwriting newer filter selections. There is no polling; the refresh button reruns the current request.
+Server state lives in TanStack Query; client UI state (the six filter selections) lives in a small Zustand store. Query was chosen over manual `useEffect` fetching because the dashboard refetches the same filter combinations repeatedly: filter metadata is cached for 10 minutes and each dashboard dataset (keyed by asset, level, window, and toggle) stays fresh for 5 minutes, so revisiting a recent selection renders instantly from cache. Race conditions the old hand-rolled code solved with request ids and `AbortController` now come free — Query cancels superseded fetches via the signal passed to the api client, which already accepts one. Query-level retries are off because the api client already retries retryable (5xx) failures with backoff, and refetch-on-window-focus is off because refresh is manual by design. Zustand was chosen over Redux Toolkit because the client state is six flat fields with no cross-slice logic — a single tiny store with per-field selectors, no boilerplate. Auth state alone stays in a Context provider.
 
 ## Chart Performance
 
@@ -30,7 +30,15 @@ Timeline segments are normalized once into numeric millisecond positions. Indivi
 
 When the individual-produce toggle is off, the chart uses hourly `produce_counts`. When it is on, the request sends `exact_produces: true`. The render path thins non-failing markers if needed, but it always keeps every `FAIL` marker. Colors, parsed timestamps, and marker geometry inputs are resolved before drawing rather than parsed per marker in JSX.
 
-For hover, the chart precomputes plotted canvas points for the current domain and uses a binary-search window around the pointer's x-position instead of scanning every visible marker on every pointer move. Drag updates are also scheduled through `requestAnimationFrame`. Superseded dashboard requests are aborted with `AbortController`, which matters when an exact-produces request is replaced by another filter change.
+For hover, the chart precomputes plotted canvas points for the current domain and uses a binary-search window around the pointer's x-position instead of scanning every visible marker on every pointer move. Drag updates are also scheduled through `requestAnimationFrame`. Superseded dashboard requests are cancelled through the `AbortController` signal TanStack Query passes to the api client, which matters when an exact-produces request is replaced by another filter change.
+
+## States And Feedback
+
+First load shows 1:1 skeleton cards (filter bar, graph with axis gutters, 11-column table grid) so content swaps in without layout shift. Refetches keep old data visible under a thin progress bar. Errors surface as a dismissible bottom toast with Retry instead of wiping the page, and the api client retries retryable failures with backoff underneath. Empty shifts get an explicit message; future buckets in an in-progress shift stay empty.
+
+## Routing And Deployment
+
+The dashboard lives at protected `/dashboard` (`/` redirects there; unknown paths render a 404 page). Because the build is a single-page app, `vercel.json` rewrites every path to `index.html` so a browser reload on `/dashboard` boots the router and restores the session instead of returning the host's 404.
 
 ## Production History Chart
 
@@ -54,4 +62,4 @@ All response timestamps are converted back to IST for labels, tooltips, and tabl
 
 ## Assumptions And Cuts
 
-The asset tree is flattened into one selector, defaulting to the first machine/line-level node when available. The date input is limited to 22-25 June 2026 because the backend data is only available in that range. Out-of-scope assignment features were not built: auto-refresh, exports, classification dialogs, i18n, themes, and multi-machine dashboards.
+The asset tree is flattened into the Asset selector with an Asset Level filter and an optional Machine picker (direct children of the selected asset), defaulting to the first machine/line-level node when available. The date input is limited to 22-25 June 2026 because the backend data is only available in that range. Out-of-scope assignment features were not built: auto-refresh, exports, classification dialogs, i18n, themes, and multi-machine dashboards.

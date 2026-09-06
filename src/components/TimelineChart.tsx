@@ -90,7 +90,7 @@ export function TimelineChart({ from, to, segments, markers, showIndividual, onS
   )
 
   const partModels = useMemo(
-    () => [...new Set(markers.map((marker) => marker.partModelId).filter(Boolean))],
+    () => [...new Set(markers.flatMap((marker) => (marker.partModelId ? [marker.partModelId] : [])))],
     [markers],
   )
 

@@ -10,7 +10,7 @@ import type {
 } from '../types'
 import { formatIst, hourKey, makeHourBoundaries } from './time'
 
-type FlatAsset = {
+export type FlatAsset = {
   node: AssetNode
   label: string
 }
@@ -28,6 +28,10 @@ export function flattenAssets(nodes: AssetNode[], parent = ''): FlatAsset[] {
     const children = flattenAssets(node.children ?? [], label)
     return [{ node, label }, ...children]
   })
+}
+
+export function visibleAssetsForLevel(assetOptions: FlatAsset[], levelId: string) {
+  return levelId === 'all' ? assetOptions : assetOptions.filter((asset) => String(asset.node.assetlevel_id) === levelId)
 }
 
 export function getEntityScope(asset: AssetNode) {

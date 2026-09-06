@@ -5,22 +5,22 @@ import type { ShiftDefinition, ShiftOption } from '../types'
 export const IST_ZONE = 'Asia/Kolkata'
 
 export function buildShiftOptions(shifts: ShiftDefinition[]): ShiftOption[] {
-  return shifts
-    .filter((shift) => shift.is_active && shift.shift_timings.length > 0)
-    .flatMap((shift) => {
-      const timings = shift.shift_timings.filter(isValidTime).toSorted()
-      return timings.map((startTime, index) => {
-        const endTime = timings[(index + 1) % timings.length]
-        return {
-          key: `${shift.id}:${index}`,
-          shiftId: shift.id,
-          shiftName: shift.name || shift.code,
-          startTime,
-          endTime,
-          label: `${shift.name || shift.code} (${startTime} - ${endTime})`,
-        }
-      })
+  return shifts.flatMap((shift) => {
+    if (!shift.is_active) return []
+    const timings = shift.shift_timings.filter(isValidTime).toSorted()
+    if (timings.length === 0) return []
+    return timings.map((startTime, index) => {
+      const endTime = timings[(index + 1) % timings.length]
+      return {
+        key: `${shift.id}:${index}`,
+        shiftId: shift.id,
+        shiftName: shift.name || shift.code,
+        startTime,
+        endTime,
+        label: `${shift.name || shift.code} (${startTime} - ${endTime})`,
+      }
     })
+  })
 }
 
 function isValidTime(value: string) {

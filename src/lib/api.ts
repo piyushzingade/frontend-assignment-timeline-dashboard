@@ -52,41 +52,61 @@ export function clearStoredToken() {
 
 async function request<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}) {
   const attempts = options.retry === false ? 1 : 3
-  let lastError: unknown
 
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const headers = new Headers(init.headers)
-      if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-
-      if (options.auth) {
-        const token = getStoredToken()
-        if (token) headers.set('Authorization', `Bearer ${token}`)
-      }
-
-      const response = await fetch(`${BASE_URL}${path}`, { ...init, headers, signal: options.signal })
-      const payload = (await response.json().catch(() => null)) as Envelope<T> | null
-      const status = payload?.status_code ?? response.status
-      const message = payload?.message ?? response.statusText
-
-      if (!response.ok || status >= 400) {
-        if (status === 401 && options.auth) unauthorizedHandler?.()
-        if (status >= 500 && attempt < attempts - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)))
-          continue
-        }
-        throw new ApiError(status, message, payload)
-      }
-
-      return payload?.data as T
+      return await executeRequest<T>(path, init, options)
     } catch (error) {
-      lastError = error
-      if (isAbortError(error) || error instanceof ApiError || attempt === attempts - 1) throw error
-      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)))
+      if (!shouldRetryError(error, attempt, attempts)) throw error
+      await waitBeforeRetry(attempt)
     }
   }
 
-  throw lastError
+  throw new Error('Request failed')
+}
+
+async function executeRequest<T>(path: string, init: RequestInit, options: ApiOptions) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: buildHeaders(init, options),
+    signal: options.signal,
+  })
+  const payload = await parseEnvelope<T>(response)
+  const status = payload?.status_code ?? response.status
+  const message = payload?.message ?? response.statusText
+
+  if (!response.ok || status >= 400) {
+    if (status === 401 && options.auth) unauthorizedHandler?.()
+    throw new ApiError(status, message, payload)
+  }
+
+  return payload?.data as T
+}
+
+function buildHeaders(init: RequestInit, options: ApiOptions) {
+  const headers = new Headers(init.headers)
+
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+
+  if (options.auth) {
+    const token = getStoredToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  return headers
+}
+
+async function parseEnvelope<T>(response: Response) {
+  return (await response.json().catch(() => null)) as Envelope<T> | null
+}
+
+function shouldRetryError(error: unknown, attempt: number, attempts: number) {
+  if (attempt >= attempts || isAbortError(error)) return false
+  return error instanceof ApiError && error.status >= 500
+}
+
+function waitBeforeRetry(attempt: number) {
+  return new Promise((resolve) => setTimeout(resolve, 350 * attempt))
 }
 
 export function isAbortError(error: unknown) {
