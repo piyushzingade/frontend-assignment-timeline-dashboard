@@ -6,6 +6,7 @@
 npm install
 cp .env.example .env
 npm run dev
+npm test -- --run   # 9 unit tests for the transform/bucketing utilities
 ```
 
 The backend URL is read from `VITE_API_BASE_URL`. The default matches the assignment host and does not add an `/api` prefix.
@@ -20,9 +21,11 @@ The access token is stored in `sessionStorage` under `timeline-dashboard-token`.
 
 On app load, the auth provider reads the token and validates it with `GET /auth/me` before showing the dashboard. All authenticated requests go through one API client that adds `Authorization: Bearer <token>` and unwraps the MES envelope. Any authenticated 401 clears the token and returns the app to login. Login 401s stay on the login screen as inline credential errors. Logout calls `/auth/logout` and clears the local session even if the backend request fails.
 
-## Data Fetching
+## Data Fetching And State Management
 
-Server state lives in TanStack Query; client UI state (the six filter selections) lives in a small Zustand store. Query was chosen over manual `useEffect` fetching because the dashboard refetches the same filter combinations repeatedly: filter metadata is cached for 10 minutes and each dashboard dataset (keyed by asset, level, window, and toggle) stays fresh for 5 minutes, so revisiting a recent selection renders instantly from cache. Race conditions the old hand-rolled code solved with request ids and `AbortController` now come free — Query cancels superseded fetches via the signal passed to the api client, which already accepts one. Query-level retries are off because the api client already retries retryable (5xx) failures with backoff, and refetch-on-window-focus is off because refresh is manual by design. Zustand was chosen over Redux Toolkit because the client state is six flat fields with no cross-slice logic — a single tiny store with per-field selectors, no boilerplate. Auth state alone stays in a Context provider.
+State management and data fetching are handled by two libraries with a strict split: **TanStack Query for all server state** (filter metadata, machine intervals, cycle times — including caching, deduplication, cancellation, and background refetching) and **Zustand for all client state** (the six filter selections: asset, level, machine, shift, date, and the individual-produces toggle). Auth state alone stays in a Context provider.
+
+Query was chosen over manual `useEffect` fetching because the dashboard refetches the same filter combinations repeatedly: filter metadata is cached for 10 minutes and each dashboard dataset (keyed by asset, level, window, and toggle) stays fresh for 5 minutes, so revisiting a recent selection renders instantly from cache. Race conditions the old hand-rolled code solved with request ids and `AbortController` now come free — Query cancels superseded fetches via the signal passed to the api client, which already accepts one. Query-level retries are off because the api client already retries retryable (5xx) failures with backoff, and refetch-on-window-focus is off because refresh is manual by design. Zustand was chosen over Redux Toolkit because the client state is six flat fields with no cross-slice logic — a single tiny store with per-field selectors, no boilerplate.
 
 ## Chart Performance
 
@@ -62,4 +65,4 @@ All response timestamps are converted back to IST for labels, tooltips, and tabl
 
 ## Assumptions And Cuts
 
-The asset tree is flattened into the Asset selector with an Asset Level filter and an optional Machine picker (direct children of the selected asset), defaulting to the first machine/line-level node when available. The date input is limited to 22-25 June 2026 because the backend data is only available in that range. Out-of-scope assignment features were not built: auto-refresh, exports, classification dialogs, i18n, themes, and multi-machine dashboards.
+The asset tree is flattened into the Asset selector with an Asset Level filter and an optional Machine picker (direct children of the selected asset), defaulting to the first machine/line-level node when available. The date input is limited to 22-25 June 2026 because the backend data is only available in that range. Out-of-scope assignment features were deliberately not built so the time went into chart performance, error handling, and edge cases instead: auto-refresh, exports, classification dialogs, i18n, themes, and multi-machine dashboards.
